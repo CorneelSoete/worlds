@@ -20,8 +20,24 @@
    mutator
    build
    new
-   val)
-  #:mutable)
+   [val #:mutable])
+  #:transparent)
+(define (dprint-env name world)
+  (define rd
+    (hash-map (read world)
+              (lambda (x y)
+                (if (composite? y)(cons x (composite-val y))(cons x y)))))
+  (define wt
+    (hash-map (wrote world)
+              (lambda (x y)
+                (if (composite? y)(cons x (composite-val y))(cons x y)))))
+  (displayln (format "--- Environment of world ~a ---" name))
+  (displayln (format "Read: ~a" rd))
+  (displayln (format "Wrote: ~a" wt))
+  (displayln "------------------------------"))
+(define-syntax-rule (print-env w)
+  (dprint-env 'w w))
+
 (define (access comp pos)
   ((composite-accessor comp) pos))
 (define (mutate! comp pos val)
@@ -41,14 +57,14 @@
    (lambda (pos)     (my-vect (build-vector (vector-length val) (lambda(x)(if (eq? x pos) (vector-ref val pos) 'lookinpar)))))
    val))
 
-(define (my-mcons val)
+(define (my-pair val)
   (composite
    (lambda (pos)     (pos val))
    (lambda (pos x)   (cond ((eq? pos car)(set-mcar! val x))
                            ((eq? pos cdr)(set-mcdr! val x))))
-   (lambda (var)     (my-mcons (mcons (dlookup var mcar)(dlookup var mcdr))))
-   (lambda (pos)     (my-mcons ((cond ((eq? pos mcar)(mcons val 'lookinpar))
-                                     ((eq? pos mcdr)(mcons 'lookinpar val))))))
+   (lambda (var)     (my-pair (mcons (dlookup var mcar)(dlookup var mcdr))))
+   (lambda (pos)     (my-pair (cond ((eq? pos mcar)(mcons (mcar val) 'lookinpar))
+                                     ((eq? pos mcdr)(mcons 'lookinpar (mcdr val))))))
    val))
 
 
@@ -78,8 +94,8 @@
       (begin
         (hash-for-each (read w)
                        (lambda (var val)
-                         (when (not (or (eq? val (check-envs (world-parent w) var))
-                                        (eq? 'notfound (check-envs (world-parent w) var))))
+                         (when (not (or (eq? val (check-envs (world-parent w) var #f))
+                                        (eq? 'notfound (check-envs (world-parent w) var #f))))
                            (set! true? #f))))
         (if true?
             (begin
@@ -108,10 +124,14 @@
         (read? w var))))
 
 (define (check-envs w var pos)
-  (let* ((vec (check-env w var))
-         (val (if (and pos (vector? vec))
-                  (if (not (eq? (vector-ref vec pos) 'lookinpar)) vec #f)
-                  vec))
+  (let* ((wrote (wrote? w var))
+         (read (read? w var))
+         (val (cond
+                ((and pos (composite? wrote)(not (eq? (access wrote pos) 'lookinpar))) wrote)
+                ((and pos (composite? read)(not (eq? (access read pos) 'lookinpar))) read)
+                ((and pos (or (composite? read)(composite wrote))) #f)
+                (wrote wrote)
+                (else read)))
          (par (world-parent w)))
     (if val val
         (if par
@@ -121,10 +141,15 @@
 
 ;find a variable in a world, if found. remember in the environment
 (define (dlookup var . pos)
-  (let* ((comp (check-env thisworld var))
-         (pos (if (pair? pos)(car pos)#f))
-         (val (cond ((and pos (composite? comp))
-                     (access comp pos))
+  (let* ((wrote (wrote? thisworld var))
+         (read (read? thisworld var))
+         (comp (if wrote wrote read))
+         (pos (if (pair? pos)(car pos) #f))
+         (val (cond ((and pos (composite? wrote)(not (eq? (access wrote pos) 'lookinpar)))
+                     (access wrote pos))
+                    ((and pos (composite? read)(not (eq? (access read pos) 'lookinpar)))
+                     (access read pos))
+                    ((and pos (or (composite? read)(composite? wrote))) 'lookinpar)
                     ((composite? comp)
                      (define com (build comp var))
                      (read! thisworld var com))
@@ -151,6 +176,7 @@
 
 (define (compound val)
   (cond ((vector? val)(my-vect val))
+        ((mpair? val) (my-pair val))
         (else val)))
 
 ;wdefine defines the variable and sets it in its environment
@@ -167,15 +193,50 @@
 (define-syntax-rule (wvector-ref vec pos)
   (dlookup 'vec pos))
 
+(define (dvector-set! vec pos val)
+  (let* ((wrote (wrote? thisworld vec))
+         (read (read? thisworld vec))
+         (length
+          (vector-length (cond (wrote (value wrote))
+                               (read (value read))
+                               (else (check-envs (world-parent thisworld) vec pos))))))
+    (if wrote (vector-set! (value wrote) pos val)
+        (write! thisworld vec
+                (my-vect (build-vector length (lambda(x)(if (eq? x pos) val 'lookinpar))))))))
+
 (define-syntax-rule (wvector-set! vec pos val)
-  (vector-set! (lookup vec) pos val))
+  (dvector-set! 'vec pos val))
+
+;wmpairs procedures
+(define-syntax-rule (wmcar pair)
+    (dlookup 'pair mcar))
+(define-syntax-rule (wmcdr pair)
+  (dlookup 'pair mcdr))
+
+(define-syntax-rule (dset-mcar! pair val)
+  (let* ((wrote (wrote? thisworld pair))
+         (read (read? thisworld pair)))
+    (if wrote (set-mcar! (value wrote) val)
+        (write! thisworld pair (my-pair (mcons val 'lookinpar))))))
+(define-syntax-rule (dset-mcdr! pair val)
+  (let* ((wrote (wrote? thisworld pair))
+         (read (read? thisworld pair)))
+    (if wrote (set-mcdr! (value wrote) val)
+        (write! thisworld pair (my-pair (mcons 'lookinpar val))))))
+(define-syntax-rule (wset-mcdr! pair val)
+  (dset-mcdr! 'pair val))
+(define-syntax-rule (wset-mcar! pair val)
+  (dset-mcar! 'pair val))
+
   
 
 (provide (all-from-out racket)
          in          sprout        commit
          lookup      wdefine       wset!
+         wmcar   wset-mcar!
+         wmcdr   wset-mcdr!
          wvector-ref wvector-set!
-         globalworld   world-env
+         globalworld   world-env    world-parent
          replace-thisworld
-         world world-parent env ;added for testing purposes
+         print-env dprint-env
          )

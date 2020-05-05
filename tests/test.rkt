@@ -148,11 +148,11 @@
      (in w
          (test-case
           "r in w should be 0"
-          (lookup r)))
+          (check-equal? (lookup r) 0)))
      (wset! r 1)
      (test-case
       "r in globalworld should be 1"
-      (lookup 'r))
+      (check-equal? (lookup r) 1))
      (test-case
       "commit should throw an error"
       (check-exn exn:fail?
@@ -213,14 +213,55 @@
           (check-equal? (wvector-ref r2 0) 0))
          (test-case
           "r1 should now be 1 in w"
-          (check-equal? (wvector-ref r2 1) 0))))))
+          (check-equal? (wvector-ref r2 1) 1))))))
 
-;(run-tests scoped-side-effects)
-;(run-tests test-top-level-commit)
-;(run-tests test-commit)
-;(run-tests test-commit-read-only)
-;(run-tests test-top-world)
-;(run-tests commit-to-top)
-;(run-tests test-serializability-check-failed)
-;(run-tests test-no-surprises)
+;test pairs
+(define test-mpairs
+  (test-suite
+   "mpairs"
+   (let ((w (sprout globalworld)))
+     (wdefine r (mcons 0 0))
+     (in w
+         (test-case
+          "car r should be 0 in w"
+          (check-equal? (wmcar r) 0))
+         (test-case
+          "r should be a (0.0) mpair"
+          (check-equal? (lookup r) (mcons 0 0)))
+         (wset-mcar! r 1)
+         (test-case
+          "car r should be 1 in w"
+          (check-equal? (wmcar r) 1)))
+     (test-case
+      "car r should still be 0 in globalworld"
+      (check-equal? (wmcar r) 0))
+     (wset-mcdr! r 1)
+     (in w
+         (test-case
+          "cdr r should still be 0 in w"
+          (check-equal? (wmcdr r) 0)))
+     ;test vector-ref in child when set in parent
+     (wdefine r2 (mcons 0 0))
+     (in w (test-case
+          "car r should be 0 in w"
+          (check-equal? (wmcar r2) 0)))
+     (wset-mcar! r2 1)
+     (wset-mcdr! r2 1)
+     (in w
+         (test-case
+          "car r should still be 0 in w"
+          (check-equal? (wmcar r2) 0))
+         (test-case
+          "cdr r should now be 1 in w"
+          (check-equal? (wmcdr r2) 1))))))
+
+(run-tests scoped-side-effects)
+(run-tests test-top-level-commit)
+(run-tests test-commit)
+(run-tests test-commit-read-only)
+(run-tests test-top-world)
+(run-tests commit-to-top)
+(run-tests test-serializability-check-failed)
+(run-tests test-no-surprises)
 (run-tests test-vectors)
+(run-tests test-mpairs)

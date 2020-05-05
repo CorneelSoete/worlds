@@ -60,14 +60,14 @@
    (wdefine r "static")
    (test-case
     "r in globalworld should be 'static'"
-    (check-equal? (lookup 'r) "static"))
+    (check-equal? (lookup r) "static"))
    (do-it 5 0)
    (test-case
     "r in globalworld should still be 'static'"
-    (check-equal? (lookup 'r) "static"))
+    (check-equal? (lookup r) "static"))
    (do-it 5 5)
    (test-case
     "r in globalworld should now be 'changed'"
-    (check-equal? (lookup 'r) "changed"))))
+    (check-equal? (lookup r) "changed"))))
 
 (run-tests exception-handling)
