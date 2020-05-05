@@ -15,15 +15,6 @@
 (define (read w)
   (env-read (world-env w)))
 
-(struct composite
-  (test
-   accessor
-   val)
-  #:mutable)
-(define (my-vect val)
-  (composite vector? vector-ref val))
-
-
 (define (empty-env)
   (env (make-hash) (make-hash)))
 (define (write! w var val)
@@ -123,19 +114,15 @@
 (define-syntax-rule (lookup var)
   (dlookup 'var))
 
-(define (compound val)
-  (cond ((vector? val)(my-vect val))
-        (else val)))
-
 ;wdefine defines the variable and sets it in its environment
 (define-syntax (wdefine VAR)
   (syntax-case VAR ()
     [( _ (a b ...) ... c) #'(write! thisworld 'a ... (lambda (b ...) c) ...)]
-    [(_ a b) #'(write! thisworld 'a (compound b))]))
+    [(_ a b) #'(write! thisworld 'a b)]))
 
 ;set! in a specific world, searches if one of children uses the variable. if so, set its dirty bit to #t
 (define-syntax-rule (wset! VAR VAL)
-  (write! thisworld 'VAR (compound VAL)))
+  (write! thisworld 'VAR VAL))
 
 ;wvector procedures
 (define-syntax-rule (wvector-ref vec pos)
