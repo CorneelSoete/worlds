@@ -6,6 +6,9 @@
    env)
   #:transparent)
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;  environment struct and procs  ;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (struct env
   ([read #:mutable]
    [wrote #:mutable])
@@ -15,13 +18,18 @@
 (define (read w)
   (env-read (world-env w)))
 
-(struct composite
-  (accessor
-   mutator
-   build
-   new
-   [val #:mutable])
-  #:transparent)
+(define (empty-env)
+  (env (make-hash) (make-hash)))
+(define (write! w var val)
+  (hash-set! (wrote w) var val) val)
+(define (wrote? w var)
+  (hash-ref (wrote w) var #f))
+(define (read! w var val)
+  (hash-set! (read w) var val) val)
+(define (read? w var)
+  (hash-ref (read w) var #f))
+
+;--- pretty env print ---
 (define (dprint-env name world)
   (define rd
     (hash-map (read world)
@@ -38,6 +46,18 @@
 (define-syntax-rule (print-env w)
   (dprint-env 'w w))
 
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;  composite data structures  ;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(struct composite
+  (accessor
+   mutator
+   build
+   new
+   [val #:mutable])
+  #:transparent)
+
 (define (access comp pos)
   ((composite-accessor comp) pos))
 (define (mutate! comp pos val)
@@ -49,14 +69,24 @@
 (define (value comp)
   (composite-val comp))
 
+; create the correct composite data struct when needed
+(define (compound val)
+  (cond ((vector? val)(my-vect val))
+        ((mpair? val) (my-pair val))
+        (else val)))
+
+; --- implementation of a vector data-structure ---
 (define (my-vect val)
   (composite
    (lambda (pos)     (vector-ref val pos))
    (lambda (pos x)   (vector-set! val pos x))
-   (lambda (var)     (my-vect (build-vector (vector-length val) (lambda(x)(dlookup var x)))))
-   (lambda (pos)     (my-vect (build-vector (vector-length val) (lambda(x)(if (eq? x pos) (vector-ref val pos) 'lookinpar)))))
+   (lambda (var)     (my-vect (build-vector (vector-length val)
+                                            (lambda(x)(dlookup var x)))))
+   (lambda (pos)     (my-vect (build-vector (vector-length val)
+                                            (lambda(x)(if (eq? x pos) (vector-ref val pos) 'lookinpar)))))
    val))
 
+; --- implementation of a pair data-structure ---
 (define (my-pair val)
   (composite
    (lambda (pos)     (pos val))
@@ -67,19 +97,12 @@
                                      ((eq? pos mcdr)(mcons 'lookinpar (mcdr val))))))
    val))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;                                              ;;
+;;   USER ACCESSIBLE PROCEDURES AND VARIABLES   ;;
+;;                                              ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define (empty-env)
-  (env (make-hash) (make-hash)))
-(define (write! w var val)
-  (hash-set! (wrote w) var val) val)
-(define (wrote? w var)
-  (hash-ref (wrote w) var #f))
-(define (read! w var val)
-  (hash-set! (read w) var val) val)
-(define (read? w var)
-  (hash-ref (read w) var #f))
-
-;thisworld and sprout
 (define globalworld (world #f (empty-env)))
 (define thisworld globalworld)
 
@@ -107,7 +130,7 @@
                                (read! (world-parent w) var val))))
             (error "illegal commit exception"))))))
 
-;since this is a macro but it has to change the global, we have to define a function which will do the set! in its place
+;since this is a macro but it has to change thisworld, we have to define a function which will do the set! in its place
 (define-syntax-rule (in world expr ...)
   (let ((prev-global thisworld))
     (replace-thisworld world)
@@ -117,12 +140,7 @@
 (define (replace-thisworld newglobal)
   (set! thisworld newglobal))
 
-;Look for the variable in the environment of the world and its parents
-(define (check-env w var)
-  (let ((wrote (wrote? w var)))
-    (if wrote wrote
-        (read? w var))))
-
+;Lookup helper function which will look in in all the adjacent environments of a world
 (define (check-envs w var pos)
   (let* ((wrote (wrote? w var))
          (read (read? w var))
@@ -174,11 +192,6 @@
 (define-syntax-rule (lookup var)
   (dlookup 'var))
 
-(define (compound val)
-  (cond ((vector? val)(my-vect val))
-        ((mpair? val) (my-pair val))
-        (else val)))
-
 ;wdefine defines the variable and sets it in its environment
 (define-syntax (wdefine VAR)
   (syntax-case VAR ()
@@ -218,6 +231,9 @@
          (read (read? thisworld pair)))
     (if wrote (set-mcar! (value wrote) val)
         (write! thisworld pair (my-pair (mcons val 'lookinpar))))))
+(define-syntax-rule (wset-mcar! pair val)
+  (dset-mcar! 'pair val))
+
 (define-syntax-rule (dset-mcdr! pair val)
   (let* ((wrote (wrote? thisworld pair))
          (read (read? thisworld pair)))
@@ -225,8 +241,6 @@
         (write! thisworld pair (my-pair (mcons 'lookinpar val))))))
 (define-syntax-rule (wset-mcdr! pair val)
   (dset-mcdr! 'pair val))
-(define-syntax-rule (wset-mcar! pair val)
-  (dset-mcar! 'pair val))
 
   
 
@@ -235,8 +249,8 @@
          lookup      wdefine       wset!
          wmcar   wset-mcar!
          wmcdr   wset-mcdr!
-         wvector-ref wvector-set!
-         globalworld   world-env    world-parent
+         wvector-ref   wvector-set!
+         globalworld
          replace-thisworld
-         print-env dprint-env
-         )
+         print-env
+         (rename-out [world-parent parent]))

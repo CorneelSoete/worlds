@@ -14,7 +14,7 @@
       (check-equal? (lookup r) 0))
      (test-case
       "parent of w equal to globalworld"
-      (check-equal? globalworld (world-parent w)))
+      (check-equal? globalworld (parent w)))
      (in w
          (test-case
           "r in w should be 0"
@@ -46,20 +46,20 @@
 (define test-commit
   (test-suite
    "tests for committing"
-   (let* ((parent (sprout globalworld))
-          (child (sprout parent)))
+   (let* ((world (sprout globalworld))
+          (child (sprout world)))
      (wdefine r 0)
      (test-case
-      "parent of child equal to parent"
-      (check-equal? parent (world-parent child)))
+      "parent of child equal to world"
+      (check-equal? world (parent child)))
      (in child
          (wset! r 1)
          (test-case
           "r in child should be 1"
           (check-equal? (lookup r) 1)))
-     (in parent
+     (in world
          (test-case
-          "r in parent should be 0"
+          "r in world should be 0"
           (check-equal? (lookup r) 0)))
      (test-case
       "r in globalworld should be 0"
@@ -69,9 +69,9 @@
          (test-case
           "r in child should be 1"
           (check-equal? (lookup r) 1)))
-     (in parent
+     (in world
          (test-case
-          "r in parent should be 1"
+          "r in world should be 1"
           (check-equal? (lookup r) 1)))
      (test-case
       "r in globalworld should still be 0"
@@ -81,19 +81,19 @@
 (define test-commit-read-only
   (test-suite
    "tests for committing"
-   (let* ((parent (sprout globalworld))
-          (child (sprout parent)))
+   (let* ((world (sprout globalworld))
+          (child (sprout world)))
      (wdefine r 0)
      (test-case
-      "parent of child equal to parent"
-      (check-equal? parent (world-parent child)))
+      "parent of child equal to world"
+      (check-equal? world (parent child)))
      (in child
          (test-case
           "r in child should be 0"
           (check-equal? (lookup r) 0)))
-     (in parent
+     (in world
          (test-case
-          "r in parent should be 0"
+          "r in world should be 0"
           (check-equal? (lookup r) 0)))
      (test-case
       "r in globalworld should be 0"
@@ -103,9 +103,9 @@
          (test-case
           "r in child should still be 0"
           (check-equal? (lookup r) 0)))
-     (in parent
+     (in world
          (test-case
-          "r in parent should still be 0"
+          "r in world should still be 0"
           (check-equal? (lookup r) 0)))
      (test-case
       "r in globalworld should still be 0"
