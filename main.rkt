@@ -15,6 +15,43 @@
 (define (read w)
   (env-read (world-env w)))
 
+(struct composite
+  (accessor
+   mutator
+   build
+   new
+   val)
+  #:mutable)
+(define (access comp pos)
+  ((composite-accessor comp) pos))
+(define (mutate! comp pos val)
+  ((composite-mutator comp) pos val))
+(define (build comp var)
+  ((composite-build comp) var))
+(define (new-comp comp pos)
+  ((composite-new comp) pos))
+(define (value comp)
+  (composite-val comp))
+
+(define (my-vect val)
+  (composite
+   (lambda (pos)     (vector-ref val pos))
+   (lambda (pos x)   (vector-set! val pos x))
+   (lambda (var)     (my-vect (build-vector (vector-length val) (lambda(x)(dlookup var x)))))
+   (lambda (pos)     (my-vect (build-vector (vector-length val) (lambda(x)(if (eq? x pos) (vector-ref val pos) 'lookinpar)))))
+   val))
+
+(define (my-mcons val)
+  (composite
+   (lambda (pos)     (pos val))
+   (lambda (pos x)   (cond ((eq? pos car)(set-mcar! val x))
+                           ((eq? pos cdr)(set-mcdr! val x))))
+   (lambda (var)     (my-mcons (mcons (dlookup var mcar)(dlookup var mcdr))))
+   (lambda (pos)     (my-mcons ((cond ((eq? pos mcar)(mcons val 'lookinpar))
+                                     ((eq? pos mcdr)(mcons 'lookinpar val))))))
+   val))
+
+
 (define (empty-env)
   (env (make-hash) (make-hash)))
 (define (write! w var val)
@@ -84,45 +121,47 @@
 
 ;find a variable in a world, if found. remember in the environment
 (define (dlookup var . pos)
-  (let* ((vec (check-env thisworld var))
+  (let* ((comp (check-env thisworld var))
          (pos (if (pair? pos)(car pos)#f))
-         (val (cond ((and pos (vector? vec))
-                     (vector-ref vec pos))
-                    ((vector? vec)
-                     (define vect (build-vector (vector-length vec)
-                                               (lambda(x)(dlookup var x))))
-                     (read! thisworld var vect))
-                    (else vec)))
+         (val (cond ((and pos (composite? comp))
+                     (access comp pos))
+                    ((composite? comp)
+                     (define com (build comp var))
+                     (read! thisworld var com))
+                    (else comp)))
          (par (world-parent thisworld)))
-    (if (and val (not (eq? val 'lookinpar))) val
+    (if (and val (not (eq? val 'lookinpar)))
+        (if (composite? val)(value val)val)
         (begin
           (if par
               (set! val (check-envs (world-parent thisworld) var pos))
               (set! val 'notfound))
           (if (eq? val 'notfound)
               (displayln (format "var '~a' not found" var))
-              (cond ((and pos (vector? vec))
-                       (vector-set! vec pos (vector-ref val pos))
-                       (vector-ref val pos))
-                      ((and pos (vector? val))
-                       (define length (vector-length val))
-                       (set! val (vector-ref val pos))
-                       (read! thisworld var (build-vector length (lambda(x)(if (eq? x pos) val 'lookinpar))))
-                       val)
-                      (else (read! thisworld var val))))))))
+              (cond ((and pos (composite? comp))
+                     (mutate! comp pos (access val pos))
+                     (access val pos))
+                    ((and pos (composite? val))
+                     (read! thisworld var (new-comp val pos))
+                     (access val pos))
+                    (else (read! thisworld var val))))))))
 
 (define-syntax-rule (lookup var)
   (dlookup 'var))
+
+(define (compound val)
+  (cond ((vector? val)(my-vect val))
+        (else val)))
 
 ;wdefine defines the variable and sets it in its environment
 (define-syntax (wdefine VAR)
   (syntax-case VAR ()
     [( _ (a b ...) ... c) #'(write! thisworld 'a ... (lambda (b ...) c) ...)]
-    [(_ a b) #'(write! thisworld 'a b)]))
+    [(_ a b) #'(write! thisworld 'a (compound b))]))
 
 ;set! in a specific world, searches if one of children uses the variable. if so, set its dirty bit to #t
 (define-syntax-rule (wset! VAR VAL)
-  (write! thisworld 'VAR VAL))
+  (write! thisworld 'VAR (compound VAL)))
 
 ;wvector procedures
 (define-syntax-rule (wvector-ref vec pos)
