@@ -106,11 +106,11 @@
 (define globalworld (world #f (empty-env)))
 (define thisworld globalworld)
 
-(define (sprout w)
+(define (bigbang w)
   (define child (world w (empty-env)))
   child)
 
-(define (commit w)
+(define (collapse w)
   (let ((true? #t)
         (par (world-parent w)))
     (when par
@@ -128,7 +128,7 @@
               (hash-for-each (read w)
                              (lambda (var val)
                                (read! (world-parent w) var val))))
-            (error "illegal commit exception"))))))
+            (error "illegal collapse exception"))))))
 
 ;since this is a macro but it has to change thisworld, we have to define a function which will do the set! in its place
 (define-syntax-rule (in world expr ...)
@@ -245,7 +245,7 @@
   
 
 (provide (all-from-out racket)
-         in          sprout        commit
+         in          bigbang       collapse
          lookup      wdefine       wset!
          wmcar   wset-mcar!
          wmcdr   wset-mcdr!

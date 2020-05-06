@@ -7,7 +7,7 @@
 (define scoped-side-effects
   (test-suite
    "test for scoped side effects"
-   (let ((w (sprout globalworld)))
+   (let ((w (bigbang globalworld)))
      (wdefine r 0)
      (test-case
       "r in globalworld should be 0"
@@ -36,18 +36,18 @@
           (check-equal? (lookup r) 2)))
      (check-equal? (lookup r) 0))))
 
-;test to see if the top level commits are ignored
-(define test-top-level-commit
+;test to see if the top level collapses are ignored
+(define test-top-level-collapse
   (test-suite
-   "test for top level commit"
-   (check-equal? (commit globalworld) (void) "void?")))
+   "test for top level collapse"
+   (check-equal? (collapse globalworld) (void) "void?")))
 
-;test to see if the commits are working as they should
-(define test-commit
+;test to see if the collapses are working as they should
+(define test-collapse
   (test-suite
-   "tests for committing"
-   (let* ((world (sprout globalworld))
-          (child (sprout world)))
+   "tests for collapseting"
+   (let* ((world (bigbang globalworld))
+          (child (bigbang world)))
      (wdefine r 0)
      (test-case
       "parent of child equal to world"
@@ -64,7 +64,7 @@
      (test-case
       "r in globalworld should be 0"
       (check-equal? (lookup r) 0))
-     (commit child)
+     (collapse child)
      (in child
          (test-case
           "r in child should be 1"
@@ -77,12 +77,12 @@
       "r in globalworld should still be 0"
       (check-equal? (lookup r) 0)))))
      
-;tests for commits when nothing is written and only read
-(define test-commit-read-only
+;tests for collapses when nothing is written and only read
+(define test-collapse-read-only
   (test-suite
-   "tests for committing"
-   (let* ((world (sprout globalworld))
-          (child (sprout world)))
+   "tests for collapseting"
+   (let* ((world (bigbang globalworld))
+          (child (bigbang world)))
      (wdefine r 0)
      (test-case
       "parent of child equal to world"
@@ -98,7 +98,7 @@
      (test-case
       "r in globalworld should be 0"
       (check-equal? (lookup r) 0))
-     (commit child)
+     (collapse child)
      (in child
          (test-case
           "r in child should still be 0"
@@ -124,17 +124,17 @@
     "r in globalworld should be 1"
     (check-equal? (lookup r) 1))))
 
-;test committing to the top world
-(define commit-to-top
+;test collapsing to the top world
+(define collapse-to-top
   (test-suite
-   "committing to top world"
-   (let ((w (sprout globalworld)))
+   "collapseting to top world"
+   (let ((w (bigbang globalworld)))
      (wdefine r 0)
      (in w (wset! r 1))
      (test-case
       "r in globalworld should be 0"
       (check-equal? (lookup r) 0))
-     (commit w)
+     (collapse w)
      (test-case
       "r in globalworld should be 1"
       (check-equal? (lookup r) 1)))))
@@ -143,7 +143,7 @@
 (define test-serializability-check-failed
   (test-suite
    "test if the serializability check fails"
-   (let ((w (sprout globalworld)))
+   (let ((w (bigbang globalworld)))
      (wdefine r 0)
      (in w
          (test-case
@@ -154,15 +154,15 @@
       "r in globalworld should be 1"
       (check-equal? (lookup r) 1))
      (test-case
-      "commit should throw an error"
+      "collapse should throw an error"
       (check-exn exn:fail?
-                 (lambda () (commit w)))))))
+                 (lambda () (collapse w)))))))
 
 ;test no surprises
 (define test-no-surprises
   (test-suite
    "no surprises"
-   (let ((w (sprout globalworld)))
+   (let ((w (bigbang globalworld)))
      (wdefine r 0)
      (wset! r 1)
      (in w
@@ -179,7 +179,7 @@
 (define test-vectors
   (test-suite
    "vectors"
-   (let ((w (sprout globalworld)))
+   (let ((w (bigbang globalworld)))
      (wdefine r (make-vector 5 0))
      (in w
          (test-case
@@ -219,7 +219,7 @@
 (define test-mpairs
   (test-suite
    "mpairs"
-   (let ((w (sprout globalworld)))
+   (let ((w (bigbang globalworld)))
      (wdefine r (mcons 0 0))
      (in w
          (test-case
@@ -256,11 +256,11 @@
           (check-equal? (wmcdr r2) 1))))))
 
 (run-tests scoped-side-effects)
-(run-tests test-top-level-commit)
-(run-tests test-commit)
-(run-tests test-commit-read-only)
+(run-tests test-top-level-collapse)
+(run-tests test-collapse)
+(run-tests test-collapse-read-only)
 (run-tests test-top-world)
-(run-tests commit-to-top)
+(run-tests collapse-to-top)
 (run-tests test-serializability-check-failed)
 (run-tests test-no-surprises)
 (run-tests test-vectors)

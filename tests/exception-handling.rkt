@@ -38,7 +38,7 @@
   (call/cc
    (lambda (cont)
      (define keep *throw*)
-     (define child (sprout globalworld)) ;the world in which the side effects will happen
+     (define child (bigbang globalworld)) ;the world in which the side effects will happen
      (set! *throw* (lambda (exception)
                      (set! *throw* keep)
                      (if (filter exception)
@@ -47,7 +47,7 @@
                            (cont (handler exception)))
                          (throw exception))))
      (define result (in child (try-lambda))) ;if no exception is thrown result is set to the result of try-lambda
-     (commit child) ;side effects are up-propagated to globalworld
+     (collapse child) ;side effects are up-propagated to globalworld
      (set! *throw* keep)
      result)))
 
