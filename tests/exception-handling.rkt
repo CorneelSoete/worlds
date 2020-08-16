@@ -3,23 +3,18 @@
 ;exception handling example
 (define (do-it x y)
   (try-catch
-   (lambda()
-     (try-catch
-      (lambda ()
-        (logarithm x y))
-      (lambda (exception)
-        (eq? exception 'division-by-zero))
-      (lambda (exception)
-        (displayln "x/0"))))
-   (lambda (exception)
-     (eq? exception 'negative-log))
-   (lambda(exception)
-     (displayln "log(-x)"))))
+   (try-catch
+    (logarithm x y)
+    'division-by-zero
+    (displayln "x/0"))
+   'negative-log
+   (displayln "log(-x)")))
 
 (define (divide x y)
   (if (= y 0)
       (throw 'division-by-zero)
       (/ x y)))
+
 (define (logarithm x y)
   (wset! r "changed") ;does a side effect (set testers to "changed")
   (if (or (<= x 0)
@@ -34,19 +29,19 @@
 (define (throw exception)
   (*throw* exception))
 
-(define (try-catch try-lambda filter handler)
+(define-syntax-rule (try-catch try-exp filter handler)
   (call/cc
    (lambda (cont)
      (define keep *throw*)
      (define child (bigbang globalworld)) ;the world in which the side effects will happen
      (set! *throw* (lambda (exception)
                      (set! *throw* keep)
-                     (if (filter exception)
+                     (if (eq? exception filter)
                          (begin
                            (replace-thisworld globalworld)
-                           (cont (handler exception)))
+                           (cont handler))
                          (throw exception))))
-     (define result (in child (try-lambda))) ;if no exception is thrown result is set to the result of try-lambda
+     (define result (in child try-exp)) ;if no exception is thrown result is set to the result of try-lambda
      (collapse child) ;side effects are up-propagated to globalworld
      (set! *throw* keep)
      result)))

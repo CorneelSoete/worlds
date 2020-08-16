@@ -94,7 +94,7 @@
                            ((eq? pos cdr)(set-mcdr! val x))))
    (lambda (var)     (my-pair (mcons (dlookup var mcar)(dlookup var mcdr))))
    (lambda (pos)     (my-pair (cond ((eq? pos mcar)(mcons (mcar val) 'lookinpar))
-                                     ((eq? pos mcdr)(mcons 'lookinpar (mcdr val))))))
+                                    ((eq? pos mcdr)(mcons 'lookinpar (mcdr val))))))
    val))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -111,24 +111,19 @@
   child)
 
 (define (collapse w)
-  (let ((true? #t)
-        (par (world-parent w)))
+  (let ((par (world-parent w)))
     (when par
-      (begin
-        (hash-for-each (read w)
-                       (lambda (var val)
-                         (when (not (or (eq? val (check-envs (world-parent w) var #f))
-                                        (eq? 'notfound (check-envs (world-parent w) var #f))))
-                           (set! true? #f))))
-        (if true?
-            (begin
-              (hash-for-each (wrote w)
-                             (lambda (var val)
-                               (write! (world-parent w) var val)))
-              (hash-for-each (read w)
-                             (lambda (var val)
-                               (read! (world-parent w) var val))))
-            (error "illegal collapse exception"))))))
+      (hash-for-each (read w)
+                     (lambda (var val)
+                       (let ((pars-val (check-envs par var #f)))
+                         (when (not (eq? val pars-val))
+                           (if (eq? 'notfound pars-val)
+                               (read! par var val)
+                               (error (format "illegal collapse exception: ~a" w)))))))
+      (hash-for-each (wrote w)
+                     (lambda (var val)
+                       (dlookup var)
+                       (write! par var val))))))
 
 ;since this is a macro but it has to change thisworld, we have to define a function which will do the set! in its place
 (define-syntax-rule (in world expr ...)
@@ -147,7 +142,7 @@
          (val (cond
                 ((and pos (composite? wrote)(not (eq? (access wrote pos) 'lookinpar))) wrote)
                 ((and pos (composite? read)(not (eq? (access read pos) 'lookinpar))) read)
-                ((and pos (or (composite? read)(composite wrote))) #f)
+                ((and pos (or (composite? read)(composite? wrote))) #f)
                 (wrote wrote)
                 (else read)))
          (par (world-parent w)))
@@ -212,7 +207,7 @@
          (length
           (vector-length (cond (wrote (value wrote))
                                (read (value read))
-                               (else (check-envs (world-parent thisworld) vec pos))))))
+                               (else (value (check-envs (world-parent thisworld) vec pos)))))))
     (if wrote (vector-set! (value wrote) pos val)
         (write! thisworld vec
                 (my-vect (build-vector length (lambda(x)(if (eq? x pos) val 'lookinpar))))))))
@@ -222,7 +217,7 @@
 
 ;wmpairs procedures
 (define-syntax-rule (wmcar pair)
-    (dlookup 'pair mcar))
+  (dlookup 'pair mcar))
 (define-syntax-rule (wmcdr pair)
   (dlookup 'pair mcdr))
 
@@ -250,7 +245,7 @@
          wmcar   wset-mcar!
          wmcdr   wset-mcdr!
          wvector-ref   wvector-set!
-         globalworld
+         globalworld thisworld
          replace-thisworld
          print-env
          (rename-out [world-parent parent]))
